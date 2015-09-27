@@ -1,0 +1,278 @@
+---
+title: "Analysis of miles per gallon by vehicle transmission type"
+output:
+  html_document: default
+  pdf_document:
+    keep_tex: yes
+---
+```{r global_options, include=FALSE}
+knitr::opts_chunk$set(fig.width=8, fig.height=6, fig.path='Figs/',
+                      echo=TRUE, warning=FALSE, message=FALSE)
+```
+```{r echo=FALSE}
+suppressPackageStartupMessages({
+    library(lattice) 
+    library(stargazer)
+    library(broom)
+    library(knitr)
+})
+
+data(mtcars)
+```
+### Summary
+
+You work for Motor Trend, a magazine about the automobile industry. Looking at a 
+data set of a collection of cars, they are interested in exploring the relationship 
+between a set of variables and miles per gallon (MPG) (outcome). They are particularly 
+interested in the following two questions:
+
+- "Is an automatic or manual transmission better for MPG"
+- "Quantify the MPG difference between automatic and manual transmissions"
+
+### Analysis
+
+The data used for the analysis comes from the mtcars data set provided from the 
+1974 Motor Trend US magazine, and consists of 32 observations using 11 variables,
+see Appendix 1 for data structure.  
+
+We conduct a preliminary exploration of the relationship of MPG to transmission, 
+taking into account weight and number of cylinders, which are also generally
+related to displacement. A plot (see Figure 1 in the first Appendix) reveals clear 
+distinctions in the 4 and 6 cylinder cars, but that it is only 4 cylinder cars 
+that markedly show a preference for manual transmission to deliver a better MPG 
+performance. The 8 cylinder cars show a preference for automatic transmission for 
+MPG performance, but an investigation of the two manual cars in the group reveal 
+that they are high performance sports cars, whereas most of the 8 cylinder 
+automatics are large family cars or mid-range performance sports cars. 
+
+```{r MTCARSPLOT, eval=FALSE, echo=FALSE}
+xyplot(mpg ~ wt | factor(cyl), data=mtcars, pch=19,  
+       main="", xlab="Weight / 1,000lb",  ylab="MPG", layout=c(3,1),
+       groups = factor(am,labels=c("Auto","Manual")),
+       type=c("p","g","r"),auto.key = TRUE)
+```
+In order to fairly evaluate the efficiency of manual vs. automatic transmission 
+we would need to have identical models of cars with the alternative transmissions
+driven under controlled conditions to get the best mileage per gallon. We do not 
+have such a set of data, so the best we can do is to identify what other factors 
+might contribute to a better MPG performance, and try to account for them when 
+modelling the effect of transmission on MPG. 
+
+We have already identified number of cylinders and weight as determining factors. 
+Therefore rather than using a simple MPG to transmission relationship we should 
+try to find a more complete set of variables in order to establish the most 
+accurate and parsimonious model to quantify the relationship between MPG and 
+transmission.
+
+For this we can conduct a multivariate regression analysis. 
+
+To assist with visualizing the effects of all of the factors we add a column 
+hp.wt to the data to show power to weight ratio (hp/wt), which together with 
+quarter mile performance (qsec) can assist in understanding performance. In 
+Appendix 2 we have printed lists of cars based on transmission type and sorted 
+by MPG and performance.
+
+```{r TESTCARS, echo=FALSE}
+testCars <- mtcars
+testCars <- testCars[order(-testCars$am, -testCars$mpg),]
+testCars$am <- factor(testCars$am, labels=c('Automatic','Manual'))
+testCars$cyl <- factor(testCars$cyl)
+testCars$vs <- factor(testCars$vs, labels=c('V-engine','Straight-engine'))
+testCars$gear <- factor(testCars$gear)
+testCars$carb <- factor(testCars$carb)
+testCars$hp.wt <- testCars$hp / testCars$wt
+
+testCars$vs <- relevel(testCars$vs, "Straight-engine")
+testCars$am <- relevel(testCars$am, "Manual")
+
+carMed <- subset(testCars, ! rownames(testCars) == "Maserati Bora")
+```
+As a comparative starting point we perform a simple evaluation by testing a two sided 
+hypothesis that MPG from manual transmissions is better than from automatics, by 
+supplying manual and auto transmission data as two samples to the R function 
+**t.test** (default 95% confidence level):
+
+```{r echo=FALSE}
+autoCars <- mtcars[mtcars$am == 0,]; 
+manualCars <- mtcars[mtcars$am == 1,]
+tTest <- t.test(manualCars$mpg, autoCars$mpg)
+tidyTest <- tidy(tTest)
+newNames <- c("diff in means", "mean Manual", "mean Auto", "Test Statistic", 
+              "P value", "DF", "low conf", "high conf")
+names(tidyTest) <- newNames
+tidyTest$`mean Manual` <- round(tidyTest$`mean Manual`, 3)
+tidyTest$`mean Auto` <- round(tidyTest$`mean Auto`, 3)
+tidyTest$`diff in means` <- tidyTest$`mean Manual` - tidyTest$`mean Auto`
+tidyTest$`Test Statistic` <- round(tidyTest$`Test Statistic`, 3)
+tidyTest$`P value` <- round(tidyTest$`P value`, 5)
+tidyTest$`DF` <- round(tidyTest$`DF`, 2)
+tidyTest$`low conf` <- round(tidyTest$`low conf`, 3)
+tidyTest$`high conf` <- round(tidyTest$`high conf`, 3)
+
+kable(tidyTest)
+```
+  
+Our simple model's prediction for MPG improvement between manual vs automatic 
+transmission is the difference in the means, so we can predict an average 
+improvement of **`r tidyTest$"diff in means"` MPG** for manual transmission cars.
+
+However this test ignores various other variables, so to account for sufficient 
+of the variables involved in the MPG performance we need to perform some multivariate
+tests. We can use the step function of R to test all of the possible useful variations,
+and after evaluating the results suggest the best model. See Appendix 3 for results:
+
+```{r MODEL, eval=FALSE, echo=FALSE}
+model <- lm(mpg ~ ., data=testCars)
+stepmodel <- step(lm(mpg ~ ., data=testCars), trace=0, steps=10000, direction="both")
+altmodel <- lm(mpg ~ cyl + hp + wt + qsec + am, data=testCars)
+medmodel <- step(lm(data=carMed, mpg ~ .), trace=0, steps=1000, direction="both")
+
+stargazer(model, stepmodel, altmodel, medmodel, type = "html", single.row=TRUE, header=FALSE, 
+          object.names = TRUE, report = "v*cs*", intercept.bottom = FALSE, align=TRUE
+          ,covariate.labels=c("(Intercept)", "6 cylinders", "8 cylinders", 
+                              "Displacement", "Gross horsepower", "Rear axle ratio", 
+                              "Weight", "1/4 mile time", "V engine configuration",
+                              "Automatic transmission", "4 forward gears",
+                              "5 forward gears", "2 carburetors", "3 carburetors", 
+                              "4 carburetors", "6 carburetors", "8 carburetors", 
+                              "Power to weight ratio")
+          )
+```
+
+```{r PLOTSMODEL, eval=FALSE, echo=FALSE}
+par(mfrow = c(2,2))
+plot(stepmodel, id.n = 8)
+```
+```{r PLOTAMODEL, eval=FALSE, echo=FALSE}
+par(mfrow = c(2,2))
+plot(altmodel, id.n = 8)
+```
+```{r PLOTMMODEL, eval=FALSE, echo=FALSE}
+par(mfrow = c(2,2))
+plot(medmodel, id.n = 8)
+```
+   
+#### Step model  
+The suggested variables returned by step were cylinders, horsepower, weight, and 
+transmission. 
+
+#### Alternative Model
+After analysis of the results we re-introduced i/4 mile time (qsec)
+to test as an alternative model, as it seems help account for effects of high 
+performance vehicles. 
+
+The adjusted R squared score of the alternative model was only 0.01 better than 
+the suggested step model, but as the estimate of transmission effect was **55% higher** 
+and seems likely more accurate, it seems a better model. Comparisons of the 
+residuals plots in Appendix 3 seem to indicate a better fit for our alternative 
+model, the QQ plot is aligned along more points compared to the suggested model, 
+the scale location regression line is flatter, and the residuals vs leverage 
+regression line is  flatter and centered closer to the zero intercept.
+
+#### Discarded variables
+Many of the variables discarded by testing through step seemed to have significant
+effects, but were also variable in tandem with the key values of horsepower,
+weight and 1/4 mile time. For instance rear axle ratio (drat) was given a high
+score, but it seems to be confounded with the simultaneous low horsepower and weight 
+of the Honda Civic, which also has the highest rear axle ratio of all of the cars, 
+and achieves very good MPG. Therefore drat is noise, and is removed from from the 
+model. Likewise for numbers of carburetors, they achieve a number of significant
+looking scores but are really linked to the performance of a vehicle better 
+measured via horsepower.
+
+#### Medium Model
+Some of the residuals exert significant leverage, the Maserati Bora has the highest
+performance specification of the manual transmission cars, while the Toyota Corona 
+has the worst MPG of the 4 cylinder cars (though still better than any 6 or 8 cylinder
+cars). 
+
+If we take out just the Maserati Bora from the data set then step produces what 
+seems a more balanced model based just on weight, 1/4 mile time, and transmission
+and shows a **further trend** towards manual transmission being better than automatic
+transmission - column 4 of the comparative summary in Appendix 3.
+</br>
+  
+### Conclusion and MPG prediction
+We have seen that a simple comparison of mean MPG between manual and automatic
+transmissions produces a rather high value for the predicted MPG effect, and 
+have concluded that a multivariate regression analysis is required to take into
+account other variables beside transmission. We have taken the suggested variables
+which the step function determined as our first model, as an alternative we have 
+added 1/4 mile time to try to better account for high performance vehicles, and 
+finally we created a model that eliminates the extremely powerful Maserati Bora
+from the data. These 3 models suggest different values for MPG improvement from
+manual over automatic transmission, and its possible that the last model is most 
+representative of the true difference between manual and automatic transmissions.
+
+The range of possibilities available in the multivariate comparisons suggest an 
+improvement in MPG performance for manual transmissions from between 1.8 to 3.2
+MPG, with **2.8** as the most likely choice considering all of the vehicles, but
+**3.2** as most representative if the high performance Maserati Bora is excluded.
+
+### Appendix 1 - Structure of mtcars table and MPG vs weight analysis
+
+Field     | Description             | Field     | Description      
+--------- | ------------            | --------- | ------------
+1.  mpg   | Miles/(US) gallon       | 7.  qsec  | 1/4 mile time
+2.  cyl   | Number of cylinders     | 8.  vs    | V/S (0 = V, 1 = Straight configuration)
+3.  disp  | Displacement (cu.in.)   | 9.  am    | Transmission (0 = automatic, 1 = manual)
+4.  hp    | Gross horsepower        | 10. gear  | Number of forward gears
+5.  drat  | Rear axle ratio         | 11. carb  | Number of carburetors
+6.  wt    | Weight (lb/1000)        |           |                          .
+
+#### Figure 1 - MPG vs Weight
+
+```{r MPGVWT, ref.label="MTCARSPLOT", echo=FALSE, fig.height = 5, fig.width = 9, fig.align = 'center'}
+```
+
+### Appendix 2 - data to assist with comparitive analysis
+   
+#### Figure 2 - Manual and Automatic cars
+
+```{r VTABLE, echo=FALSE, cache=TRUE}
+manual=subset(mtcars, am==1)
+manual$hp.wt <- manual$hp / manual$wt
+manual <- manual[order(-manual$mpg, manual$cyl, manual$hp.wt, manual$qsec),]
+kable(manual, caption = "Manual Transmission")
+
+auto=subset(mtcars, am==0)
+auto$hp.wt <- auto$hp / auto$wt
+auto <- auto[order(-auto$mpg, auto$cyl, auto$hp.wt, auto$qsec),]
+kable(auto, caption = "Automatic Transmission")
+```
+  
+</br> 
+  
+### Appendix 3 - modelling the effects of variables on MPG
+</br> 
+
+#### Figure 3 - comparisons of model variables
+
+Model Name  | Variables               | Description
+----------- | ------------            | --------- 
+model       | lm(mpg ~ ., data=testCars) | Test all variables
+stepmodel   | cyl + hp + wt + qsec + am  | Variables of the step model
+altmodel    | cyl + hp + wt + qsec + am  | Variables of the alternative model 
+medmodel    | wt + qsec + am             | Variables of the medium model 
+
+```{r ref.label="MODEL", echo=FALSE, results="asis"}
+
+```
+</br>  
+  
+#### Figure 4 - Residuals plots from the step model
+```{r ref.label="PLOTSMODEL", echo=FALSE, fig.height = 7, fig.width = 9}
+
+```
+  
+#### Figure 5 - Residuals plots from the alternative model, which includes qsec:
+```{r ref.label="PLOTAMODEL", echo=FALSE, fig.height = 7, fig.width = 9}
+
+```
+  
+The regression table in appendix 3 was created using the stargazer library: http://CRAN.R-project.org/package=stargazer
+
+This document was created using R markdown and knitr to create an HTML file, which 
+was then converted to PDF. For reasons of space most of the R code is not reproduced 
+here, but the original R markdown file with the embedded R code is available - 
+accompanying documentation will provide details of where to obtain it.
