@@ -127,6 +127,10 @@ stepmodel <- step(lm(mpg ~ ., data=testCars), trace=0, steps=10000, direction="b
 altmodel <- lm(mpg ~ cyl + hp + wt + qsec + am, data=testCars)
 medmodel <- step(lm(data=carMed, mpg ~ .), trace=0, steps=1000, direction="both")
 
+medpredict <- predict(medmodel, se.fit = TRUE, interval = "confidence")
+altpredict <- predict(altmodel, se.fit = TRUE, interval = "confidence")
+steppredict <- predict(stepmodel, se.fit = TRUE, interval = "confidence")
+
 stargazer(model, stepmodel, altmodel, medmodel, type = "html", single.row=TRUE, header=FALSE, 
           object.names = TRUE, report = "v*cs*", intercept.bottom = FALSE, align=TRUE
           ,covariate.labels=c("(Intercept)", "6 cylinders", "8 cylinders", 
@@ -151,23 +155,30 @@ plot(altmodel, id.n = 8)
 par(mfrow = c(2,2))
 plot(medmodel, id.n = 8)
 ```
+
+```{r PREDICTMODELS, eval=FALSE, echo=FALSE}
+
+```
    
-#### Step model  
-The suggested variables returned by step were cylinders, horsepower, weight, and 
-transmission. 
+#### Model development 
+The suggested variables returned by **step** were cylinders, horsepower, weight, and 
+transmission. After analysis of the results we re-introduced i/4 mile time (qsec)
+to test as an **alternative model**, as it seems help account for effects of high 
+performance vehicles. The adjusted R squared score of the alternative model was 
+only 0.01 better than the suggested step model, but as the estimate of transmission 
+effect was **55% higher** and seems likely more accurate, it seems a better model. 
+Comparisons of the residuals plots in Appendix 3 seem to indicate a better fit for 
+our alternative model, the QQ plot is aligned along more points compared to the 
+suggested model, the scale location regression line is flatter, and the residuals 
+vs leverage regression line is  flatter and centered closer to the zero intercept.
 
-#### Alternative Model
-After analysis of the results we re-introduced i/4 mile time (qsec)
-to test as an alternative model, as it seems help account for effects of high 
-performance vehicles. 
-
-The adjusted R squared score of the alternative model was only 0.01 better than 
-the suggested step model, but as the estimate of transmission effect was **55% higher** 
-and seems likely more accurate, it seems a better model. Comparisons of the 
-residuals plots in Appendix 3 seem to indicate a better fit for our alternative 
-model, the QQ plot is aligned along more points compared to the suggested model, 
-the scale location regression line is flatter, and the residuals vs leverage 
-regression line is  flatter and centered closer to the zero intercept.
+Some of the residuals exert significant leverage, the Maserati Bora has the highest
+performance specification of the manual transmission cars, while the Toyota Corona 
+has the worst MPG of the 4 cylinder cars (though still better than any 6 or 8 cylinder
+cars). If we take out just the Maserati Bora from the data set then step produces what 
+seems a more balanced **medium model** based just on weight, 1/4 mile time, and 
+transmission and shows a **further trend** towards manual transmission being better 
+than automatic transmission - column 4 of the comparative summary in Appendix 3.
 
 #### Discarded variables
 Many of the variables discarded by testing through step seemed to have significant
@@ -180,16 +191,6 @@ model. Likewise for numbers of carburetors, they achieve a number of significant
 looking scores but are really linked to the performance of a vehicle better 
 measured via horsepower.
 
-#### Medium Model
-Some of the residuals exert significant leverage, the Maserati Bora has the highest
-performance specification of the manual transmission cars, while the Toyota Corona 
-has the worst MPG of the 4 cylinder cars (though still better than any 6 or 8 cylinder
-cars). 
-
-If we take out just the Maserati Bora from the data set then step produces what 
-seems a more balanced model based just on weight, 1/4 mile time, and transmission
-and shows a **further trend** towards manual transmission being better than automatic
-transmission - column 4 of the comparative summary in Appendix 3.
 </br>
   
 ### Conclusion and MPG prediction
@@ -201,15 +202,16 @@ which the step function determined as our first model, as an alternative we have
 added 1/4 mile time to try to better account for high performance vehicles, and 
 finally we created a model that eliminates the extremely powerful Maserati Bora
 from the data. These 3 models suggest different values for MPG improvement from
-manual over automatic transmission, and its possible that the last model is most 
-representative of the true difference between manual and automatic transmissions.
+manual over automatic transmission, but applying **predict** to the models shows the 
+range of possible values for the **alternative model** to be closest to the recorded 
+figures (Appendix 4).
 
 The range of possibilities available in the multivariate comparisons suggest an 
 improvement in MPG performance for manual transmissions from between 1.8 to 3.2
 MPG, with **2.8 MPG** as the most likely choice considering all of the vehicles, 
 but **3.2 MPG** as most representative if the high performance Maserati Bora is 
 excluded. Based on the adjusted R squared value the 3 models exhibit between 
-**84 and 83 % certainty**.
+**84 and 83 R squared** which we can use as a measure of certainty (Appendix 5).
 
 ### Appendix 1 - Structure of mtcars table and MPG vs weight analysis
 
@@ -274,16 +276,24 @@ medmodel    | wt + qsec + am             | Variables of the medium model
 
 </br> 
   
-### Appendix 4 - summary of MPG values obtained
+### Appendix 4 - Toyota Corolla (actual MPG 33.9) - Predict and Statistics
+Model     | fit      | lwr       | upper    | SE        | DF | Residual Scale
+--------- | -------- | --------- | -------- | --------- | -- | ------------------
+stepmodel | 28.84874 | 27.078182 | 30.61930 | 0.8613639 | 26 | 2.41012
+altmodel  | 29.68133 | 27.330907 | 32.03176 | 1.1412400 | 25 | 2.399848
+medmodel  | 29.75772 | 27.807767 | 31.70766 | 0.9503457 | 27 | 2.484144
+
 </br> 
   
-Model Name  | Advantage manual transmission | Certainty of statistic
------------ | ----------  | --------- 
-stepmodel   | 1.809 MPG   | 84.0 %
-altmodel    | 2.833 MPG   | 84.1 %
-medmodel    | 3.176 MPG   | 83.2 %
-
+### Appendix 5 - summary of MPG values obtained
+</br> 
   
+Model Name  | Advantage manual transmission | Adjusted R squared
+----------- | ----------  | --------- 
+stepmodel   | 1.809 MPG   | 84.0
+altmodel    | 2.833 MPG   | 84.1
+medmodel    | 3.176 MPG   | 83.2
+
 The regression table in appendix 3 was created using the stargazer library: http://CRAN.R-project.org/package=stargazer
 
 This document was created using R markdown and knitr to create an HTML file, which 
