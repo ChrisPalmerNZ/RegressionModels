@@ -206,8 +206,10 @@ representative of the true difference between manual and automatic transmissions
 
 The range of possibilities available in the multivariate comparisons suggest an 
 improvement in MPG performance for manual transmissions from between 1.8 to 3.2
-MPG, with **2.8** as the most likely choice considering all of the vehicles, but
-**3.2** as most representative if the high performance Maserati Bora is excluded.
+MPG, with **2.8 MPG** as the most likely choice considering all of the vehicles, 
+but **3.2 MPG** as most representative if the high performance Maserati Bora is 
+excluded. Based on the adjusted R squared value the 3 models exhibit between 
+**84 and 83 % certainty**.
 
 ### Appendix 1 - Structure of mtcars table and MPG vs weight analysis
 
@@ -269,10 +271,22 @@ medmodel    | wt + qsec + am             | Variables of the medium model
 ```{r ref.label="PLOTAMODEL", echo=FALSE, fig.height = 7, fig.width = 9}
 
 ```
+
+</br> 
+  
+### Appendix 4 - summary of MPG values obtained
+</br> 
+  
+Model Name  | Advantage manual transmission | Certainty of statistic
+----------- | ----------  | --------- 
+stepmodel   | 1.809 MPG   | 84.0 %
+altmodel    | 2.833 MPG   | 84.1 %
+medmodel    | 3.176 MPG   | 83.2 %
+
   
 The regression table in appendix 3 was created using the stargazer library: http://CRAN.R-project.org/package=stargazer
 
 This document was created using R markdown and knitr to create an HTML file, which 
 was then converted to PDF. For reasons of space most of the R code is not reproduced 
-here, but the original R markdown file with the embedded R code is available - 
-accompanying documentation will provide details of where to obtain it.
+here, but the original R markdown file with the embedded R code is available at 
+https://github.com/Zohaggie/RegressionModels/blob/master/RegressionModels.Rmd
